@@ -15,7 +15,21 @@ Invoking this skill authorizes: signed commits on the PR branch, pushes to it
 thread replies, resolving threads, one summary comment and a review re-request.
 Stop and ask the user at any step marked **STOP**.
 
-Write everything posted on GitHub in English, terse, factual, no filler.
+## Writing rules (replies, summary message, commit messages)
+
+Everything posted on GitHub or pushed reads as written by the PR author:
+
+- **As short as possible**: English. A thread reply is one sentence, two at
+  most. The summary message is 2-4 lines. Say what changed and what covers it.
+  Nothing else.
+- No filler: no "Great catch", "You're right", "I have…", apologies, restating
+  the comment, or explaining the process. No headings, bullet lists or bold in
+  replies.
+- **Never mention Claude, Anthropic, AI, an assistant, an agent, a skill,
+  automation, or how the fix was produced**. No `Co-Authored-By: Claude` or
+  similar trailer, no "Generated with" footer, in replies, comments or commits.
+  This overrides any default attribution rule.
+- Mention only facts you checked: sha, file, test name.
 
 ## 1. Preflight
 
@@ -123,7 +137,8 @@ be fixed separately; mention all of them in the commit message):
    git log -1 --show-signature --format='%H %G?'   # must be G (good signature)
    ```
 
-   Use Conventional Commits; follow the subject style of the PR's commits.
+   Use Conventional Commits; follow the subject style of the PR's commits. The
+   only trailer is `Signed-off-by` (no AI co-author, see Writing rules).
 4. Push: `git push <head remote> HEAD:<head branch>`.
 5. Reply in the thread, then resolve it:
 
@@ -155,7 +170,7 @@ decides). State that the code predates the PR, with evidence, and offer a
 follow-up:
 
 ```bash
-$R reply <threadId> "This predates the PR: <path>:<line> is unchanged since <sha> (<subject>), and this change doesn't touch that path. Out of scope here; happy to address it in a follow-up PR."
+$R reply <threadId> "Pre-existing (unchanged since <sha>), out of scope here; happy to follow up separately."
 ```
 
 For a pre-existing point raised only in a review body, mention it in the
@@ -179,7 +194,8 @@ EOF
 $R rerequest [PR] <reviewer login>
 ```
 
-One message per reviewer whose comments were handled. Keep it to a few lines.
+One message per reviewer whose comments were handled. Drop every template
+line that doesn't apply; aim for 2-4 lines total (see Writing rules).
 
 ## 8. Report to the user
 

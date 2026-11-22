@@ -4,6 +4,8 @@
 #   review.sh pr [PR]                     PR metadata (repo, head, base, merge-base, linked issues, files)
 #   review.sh threads [PR] [--all]        unresolved review threads (--all: include resolved)
 #   review.sh reviews [PR]                submitted reviews that have a body
+#   review.sh history [PR]                all review rounds with their threads + replies, and
+#                                         the earlier threads the latest round references (#id)
 #   review.sh blame [PR] <path> <line>    was this line introduced by the PR or is it pre-existing?
 #   review.sh reply <thread-id> <body|->  reply in a review thread (- reads the body from stdin)
 #   review.sh resolve <thread-id>         resolve a review thread
@@ -90,6 +92,23 @@ case $cmd in
       --jq '.[] | select(.body != "") | {id, author:.user.login, state, at:.submitted_at, commit:.commit_id[:12], body}'
     ;;
 
+  history)
+    if is_pr "${1:-}"; then PR=$1; else PR=$(current_pr); fi
+    reviews=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" | jq -s 'add')
+    threads=$("$0" threads "$PR" --all | jq -s .)
+    jq -n --argjson reviews "$reviews" --argjson threads "$threads" '
+      ($threads | map(.comments[0].id as $c | {key:($c|tostring), value:{threadId, path, line, resolved, first:.comments[0].body[:160]}}) | from_entries) as $byComment
+      | ([$reviews[] | select(.body != "" or (.id as $r | any($threads[]; .reviewId == $r)))]) as $rounds
+      | {
+          rounds: [$rounds[] | .id as $r | {
+            reviewId:.id, author:.user.login, state, at:.submitted_at, commit:.commit_id[:12], body,
+            threads:[$threads[] | select(.reviewId == $r) | {threadId, path, line, resolved, outdated,
+              comments:[.comments[] | {author, at, body}]}]}],
+          references: [$rounds[-1].body, ($threads[] | select(.reviewId == $rounds[-1].id) | .comments[0].body)
+            | scan("#([0-9]{6,})") | .[0] | {ref:("#" + .), thread:$byComment[.]}] | unique_by(.ref)
+        }'
+    ;;
+
   blame)
     if is_pr "${1:-}"; then PR=$1; shift; else PR=$(current_pr); fi
     path=${1:?path}; line=${2:?line}
@@ -129,5 +148,5 @@ case $cmd in
       --jq '"review re-requested from: " + ([.requested_reviewers[].login] | join(", "))'
     ;;
 
-  *) sed -n '2,15p' "$0"; exit 1 ;;
+  *) sed -n '2,17p' "$0"; exit 1 ;;
 esac

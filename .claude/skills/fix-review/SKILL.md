@@ -39,20 +39,39 @@ From `$R pr`: title, body, linked issues (`closes`, read them with
 `git diff <mergeBase>...HEAD`. Write down, for yourself, the PR's focus in one
 or two sentences: this is the yardstick for triage.
 
-## 3. Collect the feedback
+## 3. Collect the feedback, with the history of earlier rounds
+
+Always load the full review history first, even when only the latest round is
+to be fixed:
 
 ```bash
-$R threads [PR]          # unresolved inline threads (threadId, path, line, comments)
-$R reviews [PR]          # review bodies: summary points not attached to a line
-$R threads [PR] --all    # resolved ones too, when a new comment refers to an earlier one
+$R history [PR]          # every review round (body, reviewed commit, its threads with all replies)
+                         # + `references`: earlier threads the latest round cites by #id
+$R threads [PR]          # unresolved inline threads to work on (threadId, path, line, comments)
 ```
 
-- Only work on the latest round: unresolved threads, plus actionable points in
-  the most recent review body.
-- Reviewers often reference earlier threads by comment id (`#4653284740`): look
-  them up in `--all` to get the full context and what was already claimed fixed.
-- A thread whose last comment is already ours with no reviewer follow-up is
-  waiting on the reviewer: skip it.
+Read every earlier round before triaging the current one:
+
+- **Earlier review bodies**: they set out the reviewer's expectations (e.g. "restart
+  behavior must be verified") that the new comments build on.
+- **Earlier threads and our replies**: what was asked, what we claimed as
+  "Fixed in <sha>", and how it was fixed (`git show <sha>`). A new comment is
+  often a follow-up: "only partly addressed", "the new queue can drop
+  completion events", or a regression caused by the previous fix.
+- **`references`**: every `#<id>` the latest round cites, mapped to its earlier
+  thread. For each one, compare the original request, our reply and the new
+  remark, so the new fix closes the gap the reviewer still sees instead of
+  repeating the earlier attempt.
+- The latest review body often also carries a verdict on each earlier thread
+  ("addressed" / "partly addressed" / "still open"). Check that each "partly" or
+  "still open" thread has a matching new inline thread. If one doesn't, treat
+  the point as an item to fix and cover it in the summary message.
+- Don't undo an earlier fix the reviewer accepted ("addressed") while fixing a
+  new comment. If two comments pull in opposite directions: **STOP**.
+
+Then work only on the latest round: unresolved threads, plus actionable points
+in the most recent review body. A thread whose last comment is ours with no
+reply from the reviewer is waiting on them: skip it.
 
 ## 4. Triage each item
 
@@ -76,8 +95,11 @@ in-scope when the PR's new code is what makes it reachable or worse, and a
 comment on a new line can be about a pattern copied from existing code. Judge by
 the PR's focus. When in doubt, treat it as in-scope.
 
-Show the user the triage table (thread, file:line, one-line summary, class,
-reason) before changing any code. Continue without waiting unless an item is
+An item that follows up an earlier in-scope thread (see `references`) stays
+in-scope.
+
+Show the user the triage table (thread, file:line, one-line summary, related
+earlier thread if any, class, reason) before changing any code. Continue without waiting unless an item is
 **disagree / unclear**.
 
 ## 5. Fix in-scope items
@@ -119,6 +141,10 @@ Reply style (from earlier rounds on this repo):
 
 > Fixed in 0dfd00cb8: the new async sender disables environment proxies while the SSRF guard is on, so the dial-time check validates the webhook host instead of the proxy.
 
+When the comment follows up an earlier thread, name it in the reply and say
+what the earlier fix missed, e.g. "Fixed in <sha> (follow-up to #4653284740):
+permissions are now set before SQLite opens the file …".
+
 If a fix only partly addresses the comment, say exactly what is left and
 don't resolve the thread.
 
@@ -144,6 +170,9 @@ $R threads [PR]    # what's left must be only pre-existing / partial / disagree 
 $R comment [PR] - <<'EOF'
 Thanks for the review @<reviewer> 🙏 <N> points addressed in <sha range or list>:
 <comma-separated short list of what was fixed>. See the per-thread replies for details.
+<If the review cited earlier threads: "Prior threads: #<id> (<topic>) <now fully addressed in <sha> | ...>.">
+<Any point raised only in the review body, e.g. "in-flight task restart is now covered by <test>.">
+<Any partial, open item, or one left for the reviewer to decide, each with its reason.>
 <If any: "<M> comments are about pre-existing code and left open for you to decide (replied inline).">
 Re-requesting review.
 EOF
